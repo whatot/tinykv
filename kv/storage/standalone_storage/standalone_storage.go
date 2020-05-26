@@ -43,10 +43,7 @@ func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader,
 }
 
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
-	txn := s.db.NewTransaction(true)
-	defer txn.Discard()
-
-	write_batch := &engine_util.WriteBatch{}
+	write_batch := new(engine_util.WriteBatch)
 	defer write_batch.Reset()
 
 	for _, m := range batch {
