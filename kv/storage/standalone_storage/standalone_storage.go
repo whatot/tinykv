@@ -11,9 +11,8 @@ import (
 // StandAloneStorage is an implementation of `Storage` for a single-node TinyKV instance. It does not
 // communicate with other nodes and all data is stored locally.
 type StandAloneStorage struct {
-	options     badger.Options
-	db          *badger.DB
-	write_batch *engine_util.WriteBatch
+	options badger.Options
+	db      *badger.DB
 }
 
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
@@ -21,8 +20,7 @@ func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 	options.Dir = conf.DBPath
 
 	return &StandAloneStorage{
-		options:     options,
-		write_batch: &engine_util.WriteBatch{},
+		options: options,
 	}
 }
 
@@ -47,17 +45,18 @@ func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader,
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
 	txn := s.db.NewTransaction(true)
 	defer txn.Discard()
-	s.write_batch.Reset()
-	defer s.write_batch.Reset()
+
+	write_batch := &engine_util.WriteBatch{}
+	defer write_batch.Reset()
 
 	for _, m := range batch {
 		switch data := m.Data.(type) {
 		case storage.Put:
-			s.write_batch.SetCF(data.Cf, data.Key, data.Value)
+			write_batch.SetCF(data.Cf, data.Key, data.Value)
 		case storage.Delete:
-			s.write_batch.DeleteCF(data.Cf, data.Key)
+			write_batch.DeleteCF(data.Cf, data.Key)
 		}
 	}
 
-	return s.write_batch.WriteToDB(s.db)
+	return write_batch.WriteToDB(s.db)
 }
