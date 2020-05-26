@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/Connor1996/badger"
+	"github.com/Connor1996/badger/y"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
@@ -89,12 +90,58 @@ func (r *AloneStorageReader) GetCF(cf string, key []byte) ([]byte, error) {
 }
 
 func (r *AloneStorageReader) IterCF(cf string) engine_util.DBIterator {
-	// TODO impl iter
-	return nil
+	return &AloneIter{r, cf, aloneItem{}}
 }
 
 func (r *AloneStorageReader) Close() {
 	if r.iterCount > 0 {
 		panic("Unclosed iterator")
 	}
+}
+
+type AloneIter struct {
+	reader *AloneStorageReader
+	cf     string
+	item   aloneItem
+}
+
+func (it *AloneIter) Item() engine_util.DBItem {
+	return it.item
+}
+func (it *AloneIter) Valid() bool {
+	return it.item.key != nil
+}
+func (it *AloneIter) Next() {
+	// Next would advance the iterator by one. Always check it.Valid() after a Next()
+	// to ensure you have access to a valid it.Item().
+	// TODO call iter
+}
+func (it *AloneIter) Seek([]byte) {
+	// Seek would seek to the provided key if present. If absent, it would seek to the next smallest key
+	// greater than provided.
+	// TODO call iter
+}
+func (it *AloneIter) Close() {
+	it.reader.iterCount -= 1
+}
+
+type aloneItem struct {
+	key   []byte
+	value []byte
+}
+
+func (it aloneItem) Key() []byte {
+	return it.key
+}
+func (it aloneItem) KeyCopy(dst []byte) []byte {
+	return y.SafeCopy(dst, it.key)
+}
+func (it aloneItem) Value() ([]byte, error) {
+	return it.value, nil
+}
+func (it aloneItem) ValueSize() int {
+	return len(it.value)
+}
+func (it aloneItem) ValueCopy(dst []byte) ([]byte, error) {
+	return y.SafeCopy(dst, it.value), nil
 }
