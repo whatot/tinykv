@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/Connor1996/badger"
-	"github.com/Connor1996/badger/y"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
@@ -90,7 +89,11 @@ func (r *AloneStorageReader) GetCF(cf string, key []byte) ([]byte, error) {
 }
 
 func (r *AloneStorageReader) IterCF(cf string) engine_util.DBIterator {
-	return &AloneIter{r, cf, aloneItem{}}
+	txn := r.inner.NewTransaction(false)
+	iter := txn.NewIterator(badger.DefaultIteratorOptions)
+	iter.Rewind()
+	prefix := []byte(cf + "_")
+	return &AloneIter{r, iter, cf, &prefix}
 }
 
 func (r *AloneStorageReader) Close() {
@@ -100,48 +103,30 @@ func (r *AloneStorageReader) Close() {
 }
 
 type AloneIter struct {
-	reader *AloneStorageReader
-	cf     string
-	item   aloneItem
+	reader    *AloneStorageReader
+	inner     *badger.Iterator
+	cf        string
+	cf_prefix *[]byte
 }
 
 func (it *AloneIter) Item() engine_util.DBItem {
-	return it.item
+	return it.inner.Item()
 }
 func (it *AloneIter) Valid() bool {
-	return it.item.key != nil
+	return it.inner.Valid()
 }
 func (it *AloneIter) Next() {
-	// Next would advance the iterator by one. Always check it.Valid() after a Next()
-	// to ensure you have access to a valid it.Item().
-	// TODO call iter
+	if it.inner.Valid() {
+		it.inner.Next()
+		for it.inner.Valid() && !it.inner.ValidForPrefix(*it.cf_prefix) {
+			it.inner.Next()
+		}
+	}
 }
-func (it *AloneIter) Seek([]byte) {
-	// Seek would seek to the provided key if present. If absent, it would seek to the next smallest key
-	// greater than provided.
-	// TODO call iter
+func (it *AloneIter) Seek(key []byte) {
+	it.inner.Seek(engine_util.KeyWithCF(it.cf, key))
 }
 func (it *AloneIter) Close() {
+	it.inner.Close()
 	it.reader.iterCount -= 1
-}
-
-type aloneItem struct {
-	key   []byte
-	value []byte
-}
-
-func (it aloneItem) Key() []byte {
-	return it.key
-}
-func (it aloneItem) KeyCopy(dst []byte) []byte {
-	return y.SafeCopy(dst, it.key)
-}
-func (it aloneItem) Value() ([]byte, error) {
-	return it.value, nil
-}
-func (it aloneItem) ValueSize() int {
-	return len(it.value)
-}
-func (it aloneItem) ValueCopy(dst []byte) ([]byte, error) {
-	return y.SafeCopy(dst, it.value), nil
 }
