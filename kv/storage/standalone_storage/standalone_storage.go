@@ -93,7 +93,7 @@ func (r *AloneStorageReader) IterCF(cf string) engine_util.DBIterator {
 	iter := txn.NewIterator(badger.DefaultIteratorOptions)
 	iter.Rewind()
 	prefix := []byte(cf + "_")
-	return &AloneIter{r, iter, cf, &prefix}
+	return &AloneIter{r, txn, iter, cf, &prefix}
 }
 
 func (r *AloneStorageReader) Close() {
@@ -104,6 +104,7 @@ func (r *AloneStorageReader) Close() {
 
 type AloneIter struct {
 	reader    *AloneStorageReader
+	txn       *badger.Txn
 	inner     *badger.Iterator
 	cf        string
 	cf_prefix *[]byte
@@ -128,5 +129,6 @@ func (it *AloneIter) Seek(key []byte) {
 }
 func (it *AloneIter) Close() {
 	it.inner.Close()
+	it.txn.Discard()
 	it.reader.iterCount -= 1
 }
