@@ -1,7 +1,10 @@
 package standalone_storage
 
 import (
+	"bytes"
+
 	"github.com/Connor1996/badger"
+	"github.com/Connor1996/badger/y"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
@@ -120,7 +123,13 @@ type AloneIter struct {
 }
 
 func (it *AloneIter) Item() engine_util.DBItem {
-	return it.inner.Item()
+	item := it.inner.Item()
+	if item != nil {
+		new_key := bytes.TrimPrefix(item.Key(), *it.cf_prefix)
+		return &AloneItem{new_key: &new_key, inner: item}
+	} else {
+		return nil
+	}
 }
 func (it *AloneIter) Valid() bool {
 	return it.inner.Valid()
@@ -140,4 +149,25 @@ func (it *AloneIter) Close() {
 	it.inner.Close()
 	it.txn.Discard()
 	it.reader.iterCount -= 1
+}
+
+type AloneItem struct {
+	new_key *[]byte
+	inner   *badger.Item
+}
+
+func (item *AloneItem) Key() []byte {
+	return *item.new_key
+}
+func (item *AloneItem) KeyCopy(dst []byte) []byte {
+	return y.SafeCopy(dst, *item.new_key)
+}
+func (item *AloneItem) Value() ([]byte, error) {
+	return item.inner.Value()
+}
+func (item *AloneItem) ValueSize() int {
+	return item.inner.ValueSize()
+}
+func (item *AloneItem) ValueCopy(dst []byte) ([]byte, error) {
+	return item.inner.ValueCopy(dst)
 }
