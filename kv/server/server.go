@@ -44,11 +44,11 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kv
 	defer reader.Close()
 
 	value, err := reader.GetCF(req.GetCf(), req.GetKey())
-	if err != nil {
-		return nil, err
+	if err != nil && err.Error() == "Key not found" {
+		return &kvrpcpb.RawGetResponse{Value: nil, NotFound: true}, nil
 	}
 
-	return &kvrpcpb.RawGetResponse{Value: value, NotFound: value != nil}, nil
+	return &kvrpcpb.RawGetResponse{Value: value, NotFound: false}, err
 }
 
 func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
