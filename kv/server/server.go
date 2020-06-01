@@ -83,8 +83,28 @@ func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest
 }
 
 func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (*kvrpcpb.RawScanResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	reader, err := server.storage.Reader(req.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	var result []*kvrpcpb.KvPair
+	iter := reader.IterCF(req.GetCf())
+	defer iter.Close()
+
+	for iter.Seek(req.GetStartKey()); iter.Valid(); iter.Next() {
+		item := iter.Item()
+		val, err := item.Value()
+		if err != nil {
+			return nil, err
+		}
+		if uint32(len(result)) == req.GetLimit() {
+			return &kvrpcpb.RawScanResponse{Kvs: result}, nil
+		}
+		result = append(result, &kvrpcpb.KvPair{Key: item.Key(), Value: val})
+	}
+	return &kvrpcpb.RawScanResponse{Kvs: result}, nil
 }
 
 // Raft commands (tinykv <-> tinykv)
