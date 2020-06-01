@@ -20,6 +20,7 @@ type StandAloneStorage struct {
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 	options := badger.DefaultOptions
 	options.Dir = conf.DBPath
+	options.ValueDir = conf.DBPath
 
 	return &StandAloneStorage{
 		options: options,
