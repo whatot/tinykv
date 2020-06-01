@@ -1,8 +1,6 @@
 package standalone_storage
 
 import (
-	"errors"
-
 	"github.com/Connor1996/badger"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
@@ -28,6 +26,10 @@ func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 }
 
 func (s *StandAloneStorage) Start() error {
+	if s.db != nil {
+		return nil
+	}
+
 	db, err := badger.Open(s.options)
 	if err != nil {
 		return err
@@ -41,15 +43,21 @@ func (s *StandAloneStorage) Stop() error {
 }
 
 func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
-	if s.db == nil {
-		return nil, errors.New("db haven't started yet")
+	err := s.Start()
+	if err != nil {
+		return nil, err
 	}
 
 	return &AloneStorageReader{s.db, 0}, nil
 }
 
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
-	write_batch := new(engine_util.WriteBatch)
+	err := s.Start()
+	if err != nil {
+		return err
+	}
+
+	write_batch := engine_util.WriteBatch{}
 	defer write_batch.Reset()
 
 	for _, m := range batch {
